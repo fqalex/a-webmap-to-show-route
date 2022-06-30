@@ -104,13 +104,20 @@
         <input style="width: 96%;" type="text" id="geojson_id" placeholder="粘贴路线id"/>
         <button id="ajaxJump" onclick="AjaxJson();">直接获得</button>
         <button id="jumpJson" onclick="openRoute();">跳转6只脚</button>
-        <button id="jump" onclick="openRouteJson();">手动复制json</button>
-        <button id="export-png" class="btn btn-default"><i class="fa fa-download"></i>导出地图</button>
+        <button id="jump" onclick="openRouteJson();">去6只脚手动复制json</button>
+        <button id="uploadTxt" onclick="uploadTxt();">上传6只脚json</button>
+        <button id="uploadGeojson" onclick="uploadGeojson();">上传geojsonjson</button>
+
+        <button id="clear_vector" class="btn btn-default" onclick="clearVector();">清除轨迹</button>
         <a id="image-download" download="map.png"></a>
         <!-- <button id="export-png" >导出地图</button> -->
+        <input id="inputFile" type="file"    style="display: none;" id="file" />
         <textarea style="width: 96%;" rows="2" type="text" id="geojson_content" placeholder="粘贴" ></textarea>
-        <button id="paste_route" onclick="showRouteFromTextarea()">导入轨迹</button>
+        <button id="paste_route" onclick="showRouteFromTextarea()">加载轨迹</button>
+        <button id="export_t_val" onclick="exportRawJsonData()">保存原始数据</button>
+        <button id="export_v_geojson" onclick="exportVectorGeojson()">保存geojson</button>
         <button id="start-animation">开始动画</button>
+        <button id="export-png" class="btn btn-default"><i class="fa fa-download"></i>导出地图</button>
         <ul id="Maptree" class="ztree" ></ul>
     </div>
     <div id="mouse-position"></div>
@@ -409,6 +416,7 @@
         let lastTime;
         lastTime = Date.now();
         let geoMarker;
+        let route;
         let startMarker;
         let endMarker;
         let position;
@@ -421,7 +429,6 @@
             var lineFeatures = new ol.Feature({type:'route','geometry': new ol.geom.LineString(linePoints),});
 
             vectorLayer.getSource().addFeature(lineFeatures);
-            x =(new ol.format.GeoJSON()).writeFeaturesObject(vectorLayer.getSource().getFeatures())
             map.getView().fit(lineFeatures.getGeometry().getExtent())
 
             geoMarker = new ol.Feature({
@@ -492,11 +499,7 @@
                         tt = JSON.parse(String(x));
                         showRoute(tt);
                     }
-
-                } catch (error) {
-                    
-                }
-
+                } catch (error) {}
                 startAnimation();
             }
         });
@@ -563,6 +566,75 @@
         });
         map.renderSync();
     });
+
+    function exportRaw(data, name) {
+        let urlObject = window.URL || window.webkitURL || window;
+        let export_blob = new Blob([data]);
+        let save_link = document.createElementNS("http://www.w3.org/1999/xhtml", "a")
+        save_link.href = urlObject.createObjectURL(export_blob);
+        save_link.download = name;
+        save_link.click();
+    }
+
+    function exportVectorGeojson() {
+        // tt =vectorLayer.getSource();
+        // rr = tt.getFeatures();
+        // nnn = new ol.format.GeoJSON()
+        // nnnn = nnn.writeFeaturesObject(rr);
+        // exportRaw(JSON.stringify(nnnn),'route.json');
+        exportRaw(JSON.stringify((new ol.format.GeoJSON()).writeFeaturesObject(vectorLayer.getSource().getFeatures())),'route.json');
+    }
+
+    function exportRawJsonData() {
+        exportRaw(document.getElementById('geojson_content').value,'route.txt');
+    }
+
+    function clearVector() {
+        vectorLayer.getSource().clear();
+    }
+
+    function uploadTxt() {
+        // $('#inputFile').trigger('click');
+        document.getElementById('inputFile').onchange = showTxt;
+        document.getElementById('inputFile').click();
+        // showTxt();
+    }
+    function uploadGeojson() {
+        document.getElementById('inputFile').onchange = showGeojson;
+        document.getElementById('inputFile').click();
+        // showGeojson();  
+    }
+    function showTxt() {
+        inputFiles = document.getElementById('inputFile').files;
+        if (inputFiles.length>0) {
+            var inputFile = inputFiles[0];
+            var fReader = new FileReader();
+            fReader.readAsText(inputFile);
+            fReader.onload = function() {
+                document.getElementById('geojson_content').value = this.result + "\r\n";
+            }
+        }
+    }
+    function showGeojson() {
+        inputFiles = document.getElementById('inputFile').files;
+        if (inputFiles.length>0) {
+            var inputFile = inputFiles[0];
+            var fReader = new FileReader();
+            fReader.readAsText(inputFile);
+            fReader.onload = function() {
+                vectorLayer.getSource().addFeatures((new ol.format.GeoJSON()).readFeatures(JSON.parse(this.result)));
+                map.getView().fit(vectorLayer.getSource().getExtent());
+                // console.log(this.result + "\r\n");
+                var x = vectorLayer.getSource().getFeatures();
+                for (i in x) {
+                // console.log(x[i].getProperties());
+                if(x[i].getProperties().type =='geoMarker') {console.log(x[i]);geoMarker = x[i];position = geoMarker.getGeometry().clone();}
+                if(x[i].getProperties().type =='route') {console.log(x[i]);route = x[i].getGeometry().getCoordinates();}
+                }
+            }
+        }
+    }
+
     </script>
     <script>
         z_source = z_vectorLayer.getSource()
