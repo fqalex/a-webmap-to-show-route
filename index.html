@@ -11,8 +11,8 @@
         html,
         body,
         .map {
-            margin: 0;
-            padding: 0;
+            /* margin: 0;
+            padding: 0; */
             width: 100%;
             height: 100%;
         }
@@ -22,8 +22,23 @@
       } */
         .map .ol-rotate {
             top: 3em;
+            left: .5em;
+            right: auto;
         }
-
+        .locateMe {
+            position:absolute;
+            top: .5em;
+            left:.5em;
+        }
+        .ol-zoom {
+            top: .5em;
+            left: 4.5em;
+        }
+        .ol-full-screen {
+            left: 2.5em;
+            top: .5em;
+            right: auto;
+        }
         #mouse-position {
             position: absolute;
             float: left;
@@ -44,16 +59,17 @@
             left: 20px;
             position: absolute;
             z-index: 1;
-            /* overflow: scroll; */
+            overflow: scroll;
             margin-top: 80px;
-            /* overflow-y: auto; */
-            /* overflow-x: hidden; */
+            overflow-y: auto;
+            overflow-x: scroll;
             color: #333;
             box-shadow: 0 0 5px #bbb;
         }
 
         .layer-switcher {
-            top: 4em
+            top: 4em;
+            left:.5em;
         }
 
         .layer-switcher button {
@@ -85,15 +101,17 @@
     <!-- <h2>a Map</h2> -->
     <div id="map" class="map"></div>
     <div id="ztreeMenu" style="">
-        <input style="width: 96%;" type="text" id="geojson_id" placeholder="粘贴"/>
-        <button id="jump" onclick="openRouteJson();">跳转</button>
+        <input style="width: 96%;" type="text" id="geojson_id" placeholder="粘贴路线id"/>
         <button id="ajaxJump" onclick="AjaxJson();">直接获得</button>
-        <a id="export-png" class="btn btn-default"><i class="fa fa-download"></i>导出地图</a>
+        <button id="jumpJson" onclick="openRoute();">跳转6只脚</button>
+        <button id="jump" onclick="openRouteJson();">手动复制json</button>
+        <button id="export-png" class="btn btn-default"><i class="fa fa-download"></i>导出地图</button>
         <a id="image-download" download="map.png"></a>
         <!-- <button id="export-png" >导出地图</button> -->
         <textarea style="width: 96%;" rows="2" type="text" id="geojson_content" placeholder="粘贴" ></textarea>
-        <button id="start-animation">Start Animation</button>
-        <ul id="Maptree" class="ztree" style="height:100%;overflow: auto;"></ul>
+        <button id="paste_route" onclick="showRouteFromTextarea()">导入轨迹</button>
+        <button id="start-animation">开始动画</button>
+        <ul id="Maptree" class="ztree" ></ul>
     </div>
     <div id="mouse-position"></div>
     <script type="text/javascript">
@@ -300,6 +318,26 @@
                 }),
             }),
         }),
+        'startMarker' : new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: 7,
+                fill: new ol.style.Fill({color: 'green'}),
+                stroke: new ol.style.Stroke({
+                    color: 'white',
+                    width: 6,
+                }),
+            }),
+        }),
+        'endMarker' : new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: 7,
+                fill: new ol.style.Fill({color: 'red'}),
+                stroke: new ol.style.Stroke({
+                    color: 'white',
+                    width: 6,
+                }),
+            }),
+        }),
         'route' : new ol.style.Style({
             fill: new ol.style.Fill({
                 color: 'rgba(255, 255, 255, 0.2)',
@@ -347,12 +385,21 @@
             else {return vectorStyle['otherStyle'];}
       },
     });
+    var z_source = new ol.source.Vector();
+    var z_vectorLayer = new ol.layer.Vector({
+        source: z_source,
+        style: function (feature) {
+            if (feature.get('type') in vectorStyle) {return vectorStyle[feature.get('type')];}
+            else {return vectorStyle['otherStyle'];}
+      },
+    });
     // //将绘制层添加到地图容器中
-    // map.addLayer(vectorLayer);
+    map.addLayer(z_vectorLayer);
     map.addLayer(vectorLayer);
     // var modify = new ol.interaction.Modify({source: vectorLayer.getSource()})
     // map.addInteraction(modify);
     vectorLayer.setZIndex(5000);
+    z_vectorLayer.setZIndex(5001);
 
 
     </script>
@@ -362,6 +409,8 @@
         let lastTime;
         lastTime = Date.now();
         let geoMarker;
+        let startMarker;
+        let endMarker;
         let position;
         function showRoute(tt) {
             const linePoints = new Array();
@@ -380,7 +429,17 @@
                 'geometry': new ol.geom.Point(ol.proj.fromLonLat([tt[0][2],tt[0][1],tt[0][3]])),
                 'timeStampEtc': tt[0],
             });
-            vectorLayer.getSource().addFeature(geoMarker);
+            startMarker = new ol.Feature({
+                type: 'startMarker',
+                'geometry': new ol.geom.Point(ol.proj.fromLonLat([tt[0][2],tt[0][1],tt[0][3]])),
+                'timeStampEtc': tt[0],
+            });
+            endMarker = new ol.Feature({
+                type: 'endMarker',
+                'geometry': new ol.geom.Point(ol.proj.fromLonLat([tt[tt.length-1][2],tt[tt.length-1][1],tt[tt.length-1][3]])),
+                'timeStampEtc': tt[tt.length-1],
+            });
+            vectorLayer.getSource().addFeatures([geoMarker,startMarker,endMarker]);
 
             source = vectorLayer.getSource()
             route = lineFeatures.getGeometry().getCoordinates()
@@ -410,14 +469,14 @@
         function startAnimation() {
             animating = true;
             lastTime = Date.now();
-            startButton.textContent = 'Stop Animation';
+            startButton.textContent = '停止轨迹动画';
             vectorLayer.on('postrender', moveFeature);
             // hide geoMarker and trigger map render through change event
             geoMarker.setGeometry(null);
         }
         function stopAnimation() {
             animating = false;
-            startButton.textContent = 'Start Animation';
+            startButton.textContent = '开始轨迹动画';
 
             // Keep marker at current animation position
             geoMarker.setGeometry(position);
@@ -441,21 +500,29 @@
                 startAnimation();
             }
         });
+        function openRoute() {
+            // url = 'http://www.foooooot.com/trip/' + String(document.getElementById('geojson_id').value) + '/trackjson/';
+            url = 'http://www.foooooot.com/trip/' + String(document.getElementById('geojson_id').value) ;
+            window.open(url);
+        }
         function openRouteJson() {
             url = 'http://www.foooooot.com/trip/' + String(document.getElementById('geojson_id').value) + '/trackjson/';
             window.open(url);
         }
         function AjaxJson() {
-            url = '/getTrack.php?track_id=' + String(document.getElementById('geojson_id').value) + '';
+            url = 'getTrack.php?track_id=' + String(document.getElementById('geojson_id').value) + '';
             $.get(url,function(data){
                 document.getElementById('geojson_content').value = data;
                 tt = JSON.parse(String(data));
                 showRoute(tt);
-                startAnimation();
+                // startAnimation();
+                // startButton.textContent = '停止轨迹动画';
             })
         }
-        function saveMap() {
-
+        function showRouteFromTextarea() {
+            x = document.getElementById('geojson_content').value;
+            tt = JSON.parse(String(x));
+            showRoute(tt);
         }
     document.getElementById('export-png').addEventListener('click', function () {
         map.once('rendercomplete', function () {
@@ -496,6 +563,47 @@
         });
         map.renderSync();
     });
+    </script>
+    <script>
+        z_source = z_vectorLayer.getSource()
+        function showMe() {
+            navigator.geolocation.getCurrentPosition(function(pos){
+                alert("success");
+                console.log("pos is ",pos);getme(pos)},
+                function(e){console.log("error is",e)},
+                { // 附带参数
+                    enableHighAccuracy: false, // 提高精度(耗费资源)
+                    timeout: 3000, // 超过timeout则调用失败的回调函数
+                    maximumAge: 1000 // 获取到的地理信息的有效期，超过有效期则重新获取一次位置信息
+                }
+                );
+        }
+        function getme(pos) {
+
+            console.log("pos is ",pos);
+            const coords = [pos.coords.longitude, pos.coords.latitude];
+            const accuracy = ol.geom.Polygon.circular(coords, pos.coords.accuracy);
+            z_source.clear(true);
+            z_source.addFeatures([
+            new ol.Feature(accuracy.transform('EPSG:4326', map.getView().getProjection())),
+            new ol.Feature(new ol.geom.Point(fromLonLat(coords)))
+            ]);
+        }
+        locate = document.createElement('div');
+        locate.className = 'ol-control ol-unselectable locate';
+        locate.innerHTML = '<button title="Locate me" class="locateMe">◎</button>';
+        locate.addEventListener('click', function() {
+            if (!z_source.isEmpty()) {
+            map.getView().fit(z_source.getExtent(), {
+                maxZoom: 18,
+                duration: 500
+            });
+            }
+            showMe();
+        });
+        map.addControl(new ol.control.Control({
+            element: locate
+        }));
     </script>
 </body>
 
