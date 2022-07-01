@@ -49,6 +49,7 @@
             box-shadow: 0 0 5px #bbb;
             padding: 0 5px;
             color: #333;
+            right: 5px;
         }
 
         #ztreeMenu {
@@ -89,6 +90,49 @@
             border-radius: 5px;
             color: #333;
         }
+        .ol-scale-line {
+            background: rgba(0,60,136,.3);
+            border-radius: 4px;
+            /* bottom: 4em; */
+            left: 8px;
+            padding: 2px;
+            position: absolute;
+        }
+        .ol-tooltip {
+            position: relative;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 4px;
+            color: white;
+            padding: 4px 8px;
+            opacity: 0.7;
+            white-space: nowrap;
+            font-size: 12px;
+            cursor: default;
+            user-select: none;
+        }
+        .ol-tooltip-measure {
+            opacity: 1;
+            font-weight: bold;
+        }
+        .ol-tooltip-static {
+            background-color: #ffcc33;
+            color: black;
+            border: 1px solid white;
+        }
+        .ol-tooltip-measure:before,
+        .ol-tooltip-static:before {
+            border-top: 6px solid rgba(0, 0, 0, 0.5);
+            border-right: 6px solid transparent;
+            border-left: 6px solid transparent;
+            content: "";
+            position: absolute;
+            bottom: -6px;
+            margin-left: -7px;
+            left: 50%;
+        }
+        .ol-tooltip-static:before {
+            border-top-color: #ffcc33;
+        }
     </style>
     <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.14.1/build/ol.js"></script>
@@ -119,9 +163,65 @@
         <button id="start-animation">开始动画</button>
         <button id="export-png" class="btn btn-default"><i class="fa fa-download"></i>导出地图</button>
         <ul id="Maptree" class="ztree" ></ul>
+        <label style="font-weight: bold;">
+            选择绘制几何图形：&nbsp;
+        </label>
+        <select id="draw_type">
+            <option value="None" selected="selected">无</option>
+            <option value="Point">点</option>
+            <option value="LineString">线</option>
+            <option value="Polygon">多边形</option>
+            <option value="Circle">圆</option>
+            <option value="Square">正方形</option>
+            <option value="Box">长方形</option>
+            <option value="Star">星形</option>
+            <option value="Geodesic" selected>测地线(曲面上两点间距离最短的线)</option>
+            <option value="drawDelete" selected>删除</option>
+        </select>
+        <input class="form-control mr-2 mb-2 mt-2" type="button" value="撤销" id="draw_undo">
+        <br>
+        <label style="font-weight: bold;">
+            选择比例尺样式：&nbsp;
+        </label>
+        <select id="scale_units">
+            <option value="degrees">度</option>
+            <option value="imperial">英制英寸</option>
+            <option value="us">美制英寸</option>
+            <option value="nautical">海里</option>
+            <option value="metric" selected>米</option>
+          </select>
+      
+          <select id="scale_type">
+            <option value="scaleline" selected>线划比例尺</option>
+            <option value="scalebar">条形比例尺</option>
+          </select>
+      
+          <select id="scale_steps" style="display:none">
+            <option value=2>2 分隔</option>
+            <option value=4 selected>4 分隔</option>
+            <option value=6>6 分隔</option>
+            <option value=8>8 分隔</option>
+          </select>
+          <div id="scale_showScaleTextDiv" style="display:none">
+            <label><input type="checkbox" id="scale_showScaleText" checked>显示数字比例</label>
+          </div>
+          <br>
+          <label for="measure_type">测量工具&nbsp;</label>
+              <label>
+                  <input type="checkbox" id="measure_switch" unchecked>
+                  
+                </label>
+
+          <select id="measure_type">
+            <option value="length">距离测量</option>
+            <option value="area">面积测里</option>
+          </select>
+          <button id="measure_clear" onclick="measure_clear()">清除测量路线</button>
+          <button id="measure_label_clear" onclick="measure_label_clear()">清除测量标记</button>
     </div>
     <div id="mouse-position"></div>
-    <script type="text/javascript">
+    <!-- 初始化地图 -->
+    <script>
         var map = new ol.Map({
             target: 'map',
             controls: ol.control.defaults().extend(
@@ -149,267 +249,317 @@
             })
         });
 
-    var zNodes = [
-        {NAME: "底图",idKey: 3,pId: 3,isParent: true,ajaxParent: false,doCheck:false,},
-    ];
-    ztreeXYZData = [
-        {
-            "mapName": "openstreetmap",
-            "xyzUrl":  "http://{a-c}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        },
-        {
-            "mapName": "thunderforest cycle",
-            "xyzUrl":  "http://{a-c}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png",
-        },
-        {
-            "mapName": "thunderforest transport",
-            "xyzUrl":  "http://{a-c}.tile.thunderforest.com/transport/{z}/{x}/{y}.png",
-        },
-        {
-            "mapName": "stamen terrain-background",
-            "xyzUrl":  "http://tile.stamen.com/terrain-background/{z}/{x}/{y}.png",
-        },
-        {
-            "mapName": "ESRI_sat",
-            "xyzUrl":  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        },
-        {
-            "mapName": "天地图矢量",
-            "xyzUrl":  'http://t' + Math.round(Math.random() * 7) + '.tianditu.com/DataServer?T=' + 'vec_w' + '&x={x}&y={y}&l={z}&tk=9e4b217e5fe502a540bcc2b454583e9b',
-        },
-        {
-            "mapName": "天地图矢量注记",
-            "xyzUrl":  'http://t' + Math.round(Math.random() * 7) + '.tianditu.com/DataServer?T=' + 'cva_w' + '&x={x}&y={y}&l={z}&tk=9e4b217e5fe502a540bcc2b454583e9b',
-        },
-        {
-            "mapName": "天地图卫星影像",
-            "xyzUrl":  'http://t' + Math.round(Math.random() * 7) + '.tianditu.com/DataServer?T=' + 'img_w' + '&x={x}&y={y}&l={z}&tk=9e4b217e5fe502a540bcc2b454583e9b',
-        },
-        {
-            "mapName": "天地图卫星影像注记",
-            "xyzUrl":  'http://t' + Math.round(Math.random() * 7) + '.tianditu.com/DataServer?T=' + 'cia_w' + '&x={x}&y={y}&l={z}&tk=9e4b217e5fe502a540bcc2b454583e9b',
-        },
-        {
-            "mapName": "天地图地形晕染",
-            "xyzUrl":  'http://t' + Math.round(Math.random() * 7) + '.tianditu.com/DataServer?T=' + 'ter_w' + '&x={x}&y={y}&l={z}&tk=9e4b217e5fe502a540bcc2b454583e9b',
-        },
-        {
-            "mapName": "天地图地形注记",
-            "xyzUrl":  'http://t' + Math.round(Math.random() * 7) + '.tianditu.com/DataServer?T=' + 'cta_w' + '&x={x}&y={y}&l={z}&tk=9e4b217e5fe502a540bcc2b454583e9b',
-        },
-        {
-            "mapName": "天地图全球境界",
-            "xyzUrl":  'http://t' + Math.round(Math.random() * 7) + '.tianditu.com/DataServer?T=' + 'ibo_w' + '&x={x}&y={y}&l={z}&tk=9e4b217e5fe502a540bcc2b454583e9b',
-        },
-    ];
+        var vectorStyle = {
+            'geoMarker' : new ol.style.Style({
+                image: new ol.style.Circle({
+                    radius: 7,
+                    fill: new ol.style.Fill({color: 'orange'}),
+                    stroke: new ol.style.Stroke({
+                        color: 'white',
+                        width: 6,
+                    }),
+                }),
+            }),
+            'startMarker' : new ol.style.Style({
+                image: new ol.style.Circle({
+                    radius: 7,
+                    fill: new ol.style.Fill({color: 'green'}),
+                    stroke: new ol.style.Stroke({
+                        color: 'white',
+                        width: 6,
+                    }),
+                }),
+            }),
+            'endMarker' : new ol.style.Style({
+                image: new ol.style.Circle({
+                    radius: 7,
+                    fill: new ol.style.Fill({color: 'red'}),
+                    stroke: new ol.style.Stroke({
+                        color: 'white',
+                        width: 6,
+                    }),
+                }),
+            }),
+            'route' : new ol.style.Style({
+                fill: new ol.style.Fill({
+                    color: 'rgba(255, 255, 255, 0.2)',
+                }),
+                stroke: new ol.style.Stroke({
+                    color: 'orange',
+                    lineDash: [5, 5],
+                    width: 2
+                }),
+                image: new ol.style.Circle({
+                    radius: 5,
+                    stroke: new ol.style.Stroke({
+                        color: 'rgba(0, 0, 0, 1)',
+                    }),
+                    fill: new ol.style.Fill({
+                        color: 'rgba(255, 255, 255, 1)'
+                    })
+                })
+            }),
+            'measureFeature' : new ol.style.Style({
+                fill: new ol.style.Fill({
+                    color: 'rgba(255, 255, 255, 0.2)'
+                }),
+                stroke: new ol.style.Stroke({
+                    color: '#ffcc33',
+                    width: 4
+                }),
+                image: new ol.style.Circle({
+                    radius: 7,
+                    fill: new ol.style.Fill({
+                        color: '#ffcc33'
+                    })
+                })
+            }),
+            'geodesicStyle' : new ol.style.Style({
+                geometry: function (feature) {
+                    return feature.get('modifyGeometry') || feature.getGeometry();
+                },
+                fill: new ol.style.Fill({
+                    color: 'rgba(255, 255, 255, 0.2)'
+                }),
+                stroke: new ol.style.Stroke({
+                    color: 'ff3333',
+                    width: 2
+                }),
+                image: new ol.style.Circle({
+                    radius: 7,
+                    fill: new ol.style.Fill({
+                        color: 'rgba(0, 0, 0, 0)'
+                    })
+                })
+            }),
+            'otherStyle':new ol.style.Style({
+                fill: new ol.style.Fill({
+                    color: 'rgba(255, 255, 255, 0.2)'
+                }),
+                stroke: new ol.style.Stroke({
+                    color: 'skyblue',
+                    width: 2
+                }),
+                image: new ol.style.Circle({
+                    radius: 7,
+                    fill: new ol.style.Fill({
+                        color: 'skyblue'
+                    })
+                })
+            }),
+            'defaultStyle': new ol.style.Style({
+                fill: new ol.style.Fill({
+                    color: 'rgba(255, 255, 255, 0.2)'
+                }),
+                stroke: new ol.style.Stroke({
+                    color: 'red',
+                    width: 2
+                }),
+                image: new ol.style.Circle({
+                    radius: 7,
+                    fill: new ol.style.Fill({
+                        color: '#ffcc33'
+                    })
+                })
+            }),
 
-    function returnXYZLayer(url) {
-        return new ol.layer.Tile({source:new ol.source.XYZ({
-            crossOrigin:'anonymous',//解决导出图片跨域问题,
-            url:url
-        })})
-    }
-    function returnTMSLayer(url) {
-        return new ol.layer.Tile({
-            source:new ol.source.XYZ({
-                    tileUrlFunction: function (tileCoord) {
-                        var z = tileCoord[0];
-                        var x = tileCoord[1];
-                        // var y = tileCoord[2];
-                        var y = (Math.pow(2, (z)) - tileCoord[2] - 1);
-                        return (url + "/" + (z-1) + "/" + x + "/" + y + ".png");
-                    }
-                })
-        })
-    }
-
-    var wmsLayer = [];
-    var setting = {
-        view: {selectedMulti: false},
-        check: {enable: true},
-        data: {
-            key: {name: "NAME",title: "NAME"},
-            simpleData: {idKey:"idKey",enable: true,}
-        },
-        callback: {
-            beforeCheck: beforeCheck,
-            onClick: zTreeOnClick,
-            onCheck: zTreeOnCheck,
         }
-    };
-    function zTreeOnClick(event, treeId, treeNode) {
-        console.log(treeNode);
-        console.log($(this));
-        var treeObj = $.fn.zTree.getZTreeObj(String(treeId));
-        if(treeNode.checked == true) {
-            treeObj.checkNode(treeNode, false, false, true);
-        } else {
-            treeObj.checkNode(treeNode, true, true, false);
+
+        var vectorSource = new ol.source.Vector();
+        var vectorLayer = new ol.layer.Vector({
+            source: vectorSource,
+            style: function (feature) {
+                const geometry = feature.getGeometry();
+                if (geometry.getType() === 'GeometryCollection') {
+                    return vectorStyle['geodesicStyle'];
+                }
+                if (feature.get('type') in vectorStyle) {return vectorStyle[feature.get('type')];}
+                else {return vectorStyle['otherStyle'];}
+        },
+        });
+        // 用户定位显示图层
+        var z_source = new ol.source.Vector();
+        var z_vectorLayer = new ol.layer.Vector({
+            source: z_source,
+            style: function (feature) {
+                if (feature.get('type') in vectorStyle) {return vectorStyle[feature.get('type')];}
+                else {return vectorStyle['otherStyle'];}
+        },
+        });
+        // //将绘制层添加到地图容器中
+        map.addLayer(z_vectorLayer);
+        map.addLayer(vectorLayer);
+        // var modify = new ol.interaction.Modify({source: vectorLayer.getSource()})
+        // map.addInteraction(modify);
+        vectorLayer.setZIndex(5000);
+        z_vectorLayer.setZIndex(5001);
+
+    </script>
+    <!-- 初始化树状菜单 -->
+    <script type="text/javascript">
+        var zNodes = [
+            {NAME: "底图",idKey: 3,pId: 3,isParent: true,ajaxParent: false,doCheck:false,},
+        ];
+        ztreeXYZData = [
+            {
+                "mapName": "openstreetmap",
+                "xyzUrl":  "http://{a-c}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            },
+            {
+                "mapName": "thunderforest cycle",
+                "xyzUrl":  "http://{a-c}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png",
+            },
+            {
+                "mapName": "thunderforest transport",
+                "xyzUrl":  "http://{a-c}.tile.thunderforest.com/transport/{z}/{x}/{y}.png",
+            },
+            {
+                "mapName": "stamen terrain-background",
+                "xyzUrl":  "http://tile.stamen.com/terrain-background/{z}/{x}/{y}.png",
+            },
+            {
+                "mapName": "ESRI_sat",
+                "xyzUrl":  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            },
+            {
+                "mapName": "天地图矢量",
+                "xyzUrl":  'http://t' + Math.round(Math.random() * 7) + '.tianditu.com/DataServer?T=' + 'vec_w' + '&x={x}&y={y}&l={z}&tk=9e4b217e5fe502a540bcc2b454583e9b',
+            },
+            {
+                "mapName": "天地图矢量注记",
+                "xyzUrl":  'http://t' + Math.round(Math.random() * 7) + '.tianditu.com/DataServer?T=' + 'cva_w' + '&x={x}&y={y}&l={z}&tk=9e4b217e5fe502a540bcc2b454583e9b',
+            },
+            {
+                "mapName": "天地图卫星影像",
+                "xyzUrl":  'http://t' + Math.round(Math.random() * 7) + '.tianditu.com/DataServer?T=' + 'img_w' + '&x={x}&y={y}&l={z}&tk=9e4b217e5fe502a540bcc2b454583e9b',
+            },
+            {
+                "mapName": "天地图卫星影像注记",
+                "xyzUrl":  'http://t' + Math.round(Math.random() * 7) + '.tianditu.com/DataServer?T=' + 'cia_w' + '&x={x}&y={y}&l={z}&tk=9e4b217e5fe502a540bcc2b454583e9b',
+            },
+            {
+                "mapName": "天地图地形晕染",
+                "xyzUrl":  'http://t' + Math.round(Math.random() * 7) + '.tianditu.com/DataServer?T=' + 'ter_w' + '&x={x}&y={y}&l={z}&tk=9e4b217e5fe502a540bcc2b454583e9b',
+            },
+            {
+                "mapName": "天地图地形注记",
+                "xyzUrl":  'http://t' + Math.round(Math.random() * 7) + '.tianditu.com/DataServer?T=' + 'cta_w' + '&x={x}&y={y}&l={z}&tk=9e4b217e5fe502a540bcc2b454583e9b',
+            },
+            {
+                "mapName": "天地图全球境界",
+                "xyzUrl":  'http://t' + Math.round(Math.random() * 7) + '.tianditu.com/DataServer?T=' + 'ibo_w' + '&x={x}&y={y}&l={z}&tk=9e4b217e5fe502a540bcc2b454583e9b',
+            },
+        ];
+
+        function returnXYZLayer(url) {
+            return new ol.layer.Tile({source:new ol.source.XYZ({
+                crossOrigin:'anonymous',//解决导出图片跨域问题,
+                url:url
+            })})
+        }
+        function returnTMSLayer(url) {
+            return new ol.layer.Tile({
+                source:new ol.source.XYZ({
+                        tileUrlFunction: function (tileCoord) {
+                            var z = tileCoord[0];
+                            var x = tileCoord[1];
+                            // var y = tileCoord[2];
+                            var y = (Math.pow(2, (z)) - tileCoord[2] - 1);
+                            return (url + "/" + (z-1) + "/" + x + "/" + y + ".png");
+                        }
+                    })
+            })
+        }
+            
+        var wmsLayer = [];
+        var setting = {
+            view: {selectedMulti: false},
+            check: {enable: true},
+            data: {
+                key: {name: "NAME",title: "NAME"},
+                simpleData: {idKey:"idKey",enable: true,}
+            },
+            callback: {
+                beforeCheck: beforeCheck,
+                onClick: zTreeOnClick,
+                onCheck: zTreeOnCheck,
+            }
+        };
+        function zTreeOnClick(event, treeId, treeNode) {
+            console.log(treeNode);
+            console.log($(this));
+            var treeObj = $.fn.zTree.getZTreeObj(String(treeId));
+            if(treeNode.checked == true) {
+                treeObj.checkNode(treeNode, false, false, true);
+            } else {
+                treeObj.checkNode(treeNode, true, true, false);
+                for(var j in wmsLayer) {
+                    if (wmsLayer[j].name == treeNode.NAME) {
+                        if(treeNode.checked == true) {
+                            map.addLayer(wmsLayer[j].wms);
+                            wmsLayer[j].wms.setVisible(true);
+                            wmsLayer[j].wms.setZIndex(100);
+                            console.log("wmsLayer[j] is :",wmsLayer[j]);
+                        } 
+                    }
+                }
+            }        
+        }
+        function beforeCheck(treeId, treeNode) {
+            return (treeNode.doCheck !== false);
+        }
+        function zTreeOnCheck(event, treeId, treeNode) {
+            console.log("zTreeOnCheck is " + event + treeId + ","+ treeNode + ","+ treeNode.idKey + ", " + treeNode.name + "," + treeNode.checked);
+            var treeObj = $.fn.zTree.getZTreeObj(String(treeId));
+            var nodes = treeObj.getNodesByParam("isMap", true, null);
+            console.log(treeId + ","+ treeNode.idKey + ", " + treeNode.name + "," + treeNode.checked);
+    
             for(var j in wmsLayer) {
                 if (wmsLayer[j].name == treeNode.NAME) {
                     if(treeNode.checked == true) {
+                        console.log("wmsLayer[j] is :",wmsLayer[j]);
                         map.addLayer(wmsLayer[j].wms);
                         wmsLayer[j].wms.setVisible(true);
-                        wmsLayer[j].wms.setZIndex(100);
-                        console.log("wmsLayer[j] is :",wmsLayer[j]);
-                    } 
-                }
-            }
-        }        
-    }
-    function beforeCheck(treeId, treeNode) {
-        return (treeNode.doCheck !== false);
-    }
-    function zTreeOnCheck(event, treeId, treeNode) {
-        console.log("zTreeOnCheck is " + event + treeId + ","+ treeNode + ","+ treeNode.idKey + ", " + treeNode.name + "," + treeNode.checked);
-        var treeObj = $.fn.zTree.getZTreeObj(String(treeId));
-        var nodes = treeObj.getNodesByParam("isMap", true, null);
-        console.log(treeId + ","+ treeNode.idKey + ", " + treeNode.name + "," + treeNode.checked);
-   
-        for(var j in wmsLayer) {
-            if (wmsLayer[j].name == treeNode.NAME) {
-                if(treeNode.checked == true) {
-                    console.log("wmsLayer[j] is :",wmsLayer[j]);
-                    map.addLayer(wmsLayer[j].wms);
-                    wmsLayer[j].wms.setVisible(true);
-                    wmsLayer[j].wms.setZIndex(j+1);
-                } else {
-                    map.removeLayer(wmsLayer[j].wms);
+                        wmsLayer[j].wms.setZIndex(j+1);
+                    } else {
+                        map.removeLayer(wmsLayer[j].wms);
+                    }
                 }
             }
         }
-    }
 
-    var load = function () {
-        MapzTreeObj = $.fn.zTree.init($("#Maptree"), setting, zNodes);
-        json = ztreeXYZData;
-        console.log("first the json is ",json);
-        for(var i in json) {
-            if (json[i].xyzUrl) {
-                wmsLayer.push({"name":json[i].mapName,"wms":returnXYZLayer(json[i].xyzUrl)});
+        var load = function () {
+            MapzTreeObj = $.fn.zTree.init($("#Maptree"), setting, zNodes);
+            json = ztreeXYZData;
+            console.log("first the json is ",json);
+            for(var i in json) {
+                if (json[i].xyzUrl) {
+                    wmsLayer.push({"name":json[i].mapName,"wms":returnXYZLayer(json[i].xyzUrl)});
+                }
+                else if (json[i].tmsUrl) {
+                    wmsLayer.push({"name":json[i].mapName,"wms":returnTMSLayer(json[i].tmsUrl)});
+                }
+                json[i].idKey = Number(i) + 3000;
+                json[i].NAME = json[i].mapName;
+                json[i].isDefMap = true;
+                json[i]['wmsurl'] = json[i].url;
+                delete json[i].url;
+
             }
-            else if (json[i].tmsUrl) {
-                wmsLayer.push({"name":json[i].mapName,"wms":returnTMSLayer(json[i].tmsUrl)});
-            }
-            json[i].idKey = Number(i) + 3000;
-            json[i].NAME = json[i].mapName;
-            json[i].isDefMap = true;
-            json[i]['wmsurl'] = json[i].url;
-            delete json[i].url;
-
-        }
-        console.log("now json is ",json);
-        var treeObj = $.fn.zTree.getZTreeObj("Maptree");
-        treeObj.addNodes(treeObj.getNodes()[0],0,json,true);
-        treeObj.expandNode(treeObj.getNodes()[0],true,true,true);
-        treeObj.checkNode(treeObj.getNodes()[0].children[7],true,true,true);
-        treeObj.checkNode(treeObj.getNodes()[0].children[8],true,true,true);
-        treeObj.checkNode(treeObj.getNodes()[0].children[11],true,true,true);
+            console.log("now json is ",json);
+            var treeObj = $.fn.zTree.getZTreeObj("Maptree");
+            treeObj.addNodes(treeObj.getNodes()[0],0,json,true);
+            treeObj.expandNode(treeObj.getNodes()[0],true,true,true);
+            treeObj.checkNode(treeObj.getNodes()[0].children[7],true,true,true);
+            treeObj.checkNode(treeObj.getNodes()[0].children[8],true,true,true);
+            treeObj.checkNode(treeObj.getNodes()[0].children[11],true,true,true);
 
 
 
-    };
-    load();
-
-
-
-
-    vectorStyle = {
-        'geoMarker' : new ol.style.Style({
-            image: new ol.style.Circle({
-                radius: 7,
-                fill: new ol.style.Fill({color: 'orange'}),
-                stroke: new ol.style.Stroke({
-                    color: 'white',
-                    width: 6,
-                }),
-            }),
-        }),
-        'startMarker' : new ol.style.Style({
-            image: new ol.style.Circle({
-                radius: 7,
-                fill: new ol.style.Fill({color: 'green'}),
-                stroke: new ol.style.Stroke({
-                    color: 'white',
-                    width: 6,
-                }),
-            }),
-        }),
-        'endMarker' : new ol.style.Style({
-            image: new ol.style.Circle({
-                radius: 7,
-                fill: new ol.style.Fill({color: 'red'}),
-                stroke: new ol.style.Stroke({
-                    color: 'white',
-                    width: 6,
-                }),
-            }),
-        }),
-        'route' : new ol.style.Style({
-            fill: new ol.style.Fill({
-                color: 'rgba(255, 255, 255, 0.2)',
-            }),
-            stroke: new ol.style.Stroke({
-                color: 'orange',
-                lineDash: [5, 5],
-                width: 2
-            }),
-            image: new ol.style.Circle({
-                radius: 5,
-                stroke: new ol.style.Stroke({
-                    color: 'rgba(0, 0, 0, 1)',
-                }),
-                fill: new ol.style.Fill({
-                    color: 'rgba(255, 255, 255, 1)'
-                })
-            })
-        }),
-        'otherStyle' : new ol.style.Style({
-            fill: new ol.style.Fill({
-                color: 'green'
-            }),
-            stroke: new ol.style.Stroke({
-                color: 'blue',
-                width: 10
-            }),
-            image: new ol.style.Circle({
-                radius: 5,
-            stroke: new ol.style.Stroke({
-                color: 'blue',
-                width: 10
-            }),
-                fill: new ol.style.Fill({
-                    color: 'orange'
-                })
-            })})
-    }
-
-    var source = new ol.source.Vector();
-    var vectorLayer = new ol.layer.Vector({
-        source: source,
-        style: function (feature) {
-            if (feature.get('type') in vectorStyle) {return vectorStyle[feature.get('type')];}
-            else {return vectorStyle['otherStyle'];}
-      },
-    });
-    var z_source = new ol.source.Vector();
-    var z_vectorLayer = new ol.layer.Vector({
-        source: z_source,
-        style: function (feature) {
-            if (feature.get('type') in vectorStyle) {return vectorStyle[feature.get('type')];}
-            else {return vectorStyle['otherStyle'];}
-      },
-    });
-    // //将绘制层添加到地图容器中
-    map.addLayer(z_vectorLayer);
-    map.addLayer(vectorLayer);
-    // var modify = new ol.interaction.Modify({source: vectorLayer.getSource()})
-    // map.addInteraction(modify);
-    vectorLayer.setZIndex(5000);
-    z_vectorLayer.setZIndex(5001);
-
-
+        };
+        load();
     </script>
+    <!-- 轨迹显示部分 -->
     <script>
         let animating = false;
         let distance = 0;
@@ -527,116 +677,123 @@
             tt = JSON.parse(String(x));
             showRoute(tt);
         }
-    document.getElementById('export-png').addEventListener('click', function () {
-        map.once('rendercomplete', function () {
-            const mapCanvas = document.createElement('canvas');
-            const size = map.getSize();
-            mapCanvas.width = size[0];
-            mapCanvas.height = size[1];
-            const mapContext = mapCanvas.getContext('2d');
-            Array.prototype.forEach.call(
-            document.querySelectorAll('.ol-layer canvas'),
-            function (canvas) {
-                if (canvas.width > 0) {
-                const opacity = canvas.parentNode.style.opacity;
-                mapContext.globalAlpha = opacity === '' ? 1 : Number(opacity);
-                const transform = canvas.style.transform;
-                // Get the transform parameters from the style's transform matrix
-                const matrix = transform
-                    .match(/^matrix\(([^\(]*)\)$/)[1]
-                    .split(',')
-                    .map(Number);
-                // Apply the transform to the export map context
-                CanvasRenderingContext2D.prototype.setTransform.apply(
-                    mapContext,
-                    matrix
-                );
-                mapContext.drawImage(canvas, 0, 0);
-                }
-            }
-            );
-            if (navigator.msSaveBlob) {
-            // link download attribute does not work on MS browsers
-            navigator.msSaveBlob(mapCanvas.msToBlob(), 'map.png');
-            } else {
-            const link = document.getElementById('image-download');
-            link.href = mapCanvas.toDataURL();
-            link.click();
-            }
-        });
-        map.renderSync();
-    });
 
-    function exportRaw(data, name) {
-        let urlObject = window.URL || window.webkitURL || window;
-        let export_blob = new Blob([data]);
-        let save_link = document.createElementNS("http://www.w3.org/1999/xhtml", "a")
-        save_link.href = urlObject.createObjectURL(export_blob);
-        save_link.download = name;
-        save_link.click();
-    }
-
-    function exportVectorGeojson() {
-        // tt =vectorLayer.getSource();
-        // rr = tt.getFeatures();
-        // nnn = new ol.format.GeoJSON()
-        // nnnn = nnn.writeFeaturesObject(rr);
-        // exportRaw(JSON.stringify(nnnn),'route.json');
-        exportRaw(JSON.stringify((new ol.format.GeoJSON()).writeFeaturesObject(vectorLayer.getSource().getFeatures())),'route.json');
-    }
-
-    function exportRawJsonData() {
-        exportRaw(document.getElementById('geojson_content').value,'route.txt');
-    }
-
-    function clearVector() {
-        vectorLayer.getSource().clear();
-    }
-
-    function uploadTxt() {
-        // $('#inputFile').trigger('click');
-        document.getElementById('inputFile').onchange = showTxt;
-        document.getElementById('inputFile').click();
-        // showTxt();
-    }
-    function uploadGeojson() {
-        document.getElementById('inputFile').onchange = showGeojson;
-        document.getElementById('inputFile').click();
-        // showGeojson();  
-    }
-    function showTxt() {
-        inputFiles = document.getElementById('inputFile').files;
-        if (inputFiles.length>0) {
-            var inputFile = inputFiles[0];
-            var fReader = new FileReader();
-            fReader.readAsText(inputFile);
-            fReader.onload = function() {
-                document.getElementById('geojson_content').value = this.result + "\r\n";
-            }
-        }
-    }
-    function showGeojson() {
-        inputFiles = document.getElementById('inputFile').files;
-        if (inputFiles.length>0) {
-            var inputFile = inputFiles[0];
-            var fReader = new FileReader();
-            fReader.readAsText(inputFile);
-            fReader.onload = function() {
-                vectorLayer.getSource().addFeatures((new ol.format.GeoJSON()).readFeatures(JSON.parse(this.result)));
-                map.getView().fit(vectorLayer.getSource().getExtent());
-                // console.log(this.result + "\r\n");
-                var x = vectorLayer.getSource().getFeatures();
-                for (i in x) {
-                // console.log(x[i].getProperties());
-                if(x[i].getProperties().type =='geoMarker') {console.log(x[i]);geoMarker = x[i];position = geoMarker.getGeometry().clone();}
-                if(x[i].getProperties().type =='route') {console.log(x[i]);route = x[i].getGeometry().getCoordinates();}
-                }
-            }
-        }
-    }
 
     </script>
+    <!-- 数据导入导出 -->
     <script>
+        document.getElementById('export-png').addEventListener('click', function () {
+            map.once('rendercomplete', function () {
+                const mapCanvas = document.createElement('canvas');
+                const size = map.getSize();
+                mapCanvas.width = size[0];
+                mapCanvas.height = size[1];
+                const mapContext = mapCanvas.getContext('2d');
+                Array.prototype.forEach.call(
+                document.querySelectorAll('.ol-layer canvas'),
+                function (canvas) {
+                    if (canvas.width > 0) {
+                    const opacity = canvas.parentNode.style.opacity;
+                    mapContext.globalAlpha = opacity === '' ? 1 : Number(opacity);
+                    const transform = canvas.style.transform;
+                    // Get the transform parameters from the style's transform matrix
+                    const matrix = transform
+                        .match(/^matrix\(([^\(]*)\)$/)[1]
+                        .split(',')
+                        .map(Number);
+                    // Apply the transform to the export map context
+                    CanvasRenderingContext2D.prototype.setTransform.apply(
+                        mapContext,
+                        matrix
+                    );
+                    mapContext.drawImage(canvas, 0, 0);
+                    }
+                }
+                );
+                if (navigator.msSaveBlob) {
+                // link download attribute does not work on MS browsers
+                navigator.msSaveBlob(mapCanvas.msToBlob(), 'map.png');
+                } else {
+                const link = document.getElementById('image-download');
+                link.href = mapCanvas.toDataURL();
+                link.click();
+                }
+            });
+            map.renderSync();
+        });
+        function exportRaw(data, name) {
+            let urlObject = window.URL || window.webkitURL || window;
+            let export_blob = new Blob([data]);
+            let save_link = document.createElementNS("http://www.w3.org/1999/xhtml", "a")
+            save_link.href = urlObject.createObjectURL(export_blob);
+            save_link.download = name;
+            save_link.click();
+        }
+
+        function exportVectorGeojson() {
+            // tt =vectorLayer.getSource();
+            // rr = tt.getFeatures();
+            // nnn = new ol.format.GeoJSON()
+            // nnnn = nnn.writeFeaturesObject(rr);
+            // exportRaw(JSON.stringify(nnnn),'route.json');
+            exportRaw(JSON.stringify((new ol.format.GeoJSON()).writeFeaturesObject(vectorLayer.getSource().getFeatures())),'route.json');
+        }
+
+        function exportRawJsonData() {
+            exportRaw(document.getElementById('geojson_content').value,'route.txt');
+        }
+
+        function clearVector() {
+            vectorLayer.getSource().clear();
+        }
+
+        function uploadTxt() {
+            // $('#inputFile').trigger('click');
+            document.getElementById('inputFile').onchange = showTxt;
+            document.getElementById('inputFile').click();
+            // showTxt();
+        }
+        function uploadGeojson() {
+            document.getElementById('inputFile').onchange = showGeojson;
+            document.getElementById('inputFile').click();
+            // showGeojson();  
+        }
+        function showTxt() {
+            inputFiles = document.getElementById('inputFile').files;
+            if (inputFiles.length>0) {
+                var inputFile = inputFiles[0];
+                var fReader = new FileReader();
+                fReader.readAsText(inputFile);
+                fReader.onload = function() {
+                    document.getElementById('geojson_content').value = this.result + "\r\n";
+                }
+            }
+        }
+        function showGeojson() {
+            inputFiles = document.getElementById('inputFile').files;
+            if (inputFiles.length>0) {
+                var inputFile = inputFiles[0];
+                var fReader = new FileReader();
+                fReader.readAsText(inputFile);
+                fReader.onload = function() {
+                    vectorLayer.getSource().addFeatures((new ol.format.GeoJSON()).readFeatures(JSON.parse(this.result)));
+                    map.getView().fit(vectorLayer.getSource().getExtent());
+                    // console.log(this.result + "\r\n");
+                    var x = vectorLayer.getSource().getFeatures();
+                    for (i in x) {
+                    // console.log(x[i].getProperties());
+                    if(x[i].getProperties().type =='geoMarker') {console.log(x[i]);geoMarker = x[i];position = geoMarker.getGeometry().clone();}
+                    if(x[i].getProperties().type =='route') {console.log(x[i]);route = x[i].getGeometry().getCoordinates();}
+                    }
+                }
+            }
+        }
+
+    </script>
+    
+    <!-- 用户定位 -->
+    <script>
+        // 用户定位
         z_source = z_vectorLayer.getSource()
         function showMe() {
             navigator.geolocation.getCurrentPosition(function(pos){
@@ -676,6 +833,556 @@
         map.addControl(new ol.control.Control({
             element: locate
         }));
+    </script>
+    <!-- 比例尺 -->
+    <script>
+        const unitsSelect = document.getElementById('scale_units');
+        const scale_typeSelect = document.getElementById('scale_type');
+        const stepsSelect = document.getElementById('scale_steps');
+        const scaleTextCheckbox = document.getElementById('scale_showScaleText');
+        const showScaleTextDiv = document.getElementById('scale_showScaleTextDiv');
+
+        let scaleType = 'scaleline';
+        let scaleBarSteps = 4;
+        let scaleBarText = true;
+        let control;
+
+        function scaleControl() {
+        if (scaleType === 'scaleline') {
+            control = new ol.control.ScaleLine({
+            units: unitsSelect.value,
+            });
+            return control;
+        }
+        control = new ol.control.ScaleLine({
+            units: unitsSelect.value,
+            bar: true,
+            steps: scaleBarSteps,
+            text: scaleBarText,
+            minWidth: 140,
+        });
+        return control;
+        }
+        function onChange() {
+        control.setUnits(unitsSelect.value);
+        }
+        function onChangeType() {
+        scaleType = scale_typeSelect.value;
+        if (scale_typeSelect.value === 'scalebar') {
+            stepsSelect.style.display = 'inline';
+            showScaleTextDiv.style.display = 'inline';
+            map.removeControl(control);
+            map.addControl(scaleControl());
+        } else {
+            stepsSelect.style.display = 'none';
+            showScaleTextDiv.style.display = 'none';
+            map.removeControl(control);
+            map.addControl(scaleControl());
+        }
+        }
+        function onChangeSteps() {
+        scaleBarSteps = parseInt(stepsSelect.value, 10);
+        map.removeControl(control);
+        map.addControl(scaleControl());
+        }
+        function onChangeScaleText() {
+        scaleBarText = scaleTextCheckbox.checked;
+        map.removeControl(control);
+        map.addControl(scaleControl());
+        }
+        unitsSelect.addEventListener('change', onChange);
+        scale_typeSelect.addEventListener('change', onChangeType);
+        stepsSelect.addEventListener('change', onChangeSteps);
+        scaleTextCheckbox.addEventListener('change', onChangeScaleText);
+        map.addControl(scaleControl());
+    </script>
+    <!-- 绘制工具 -->
+    <script>
+        //简单绘制点线面
+        var style_selected = (function () {
+            var styles = {};
+            styles['Polygon'] = [new ol.style.Style({
+                fill: new ol.style.Fill({
+                    color: [255, 255, 255, 0.5]
+                })
+            }),
+            new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: [255, 255, 255, 1],
+                    width: 5
+                })
+            }),
+            new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: [255, 0, 0, 1],
+                    width: 3
+                })
+            }),
+            new ol.style.Style({
+                image: new ol.style.Circle({
+                    radius: 2,
+                    fill: new ol.style.Fill({
+                        color: 'red'
+                    })
+                }),
+                geometry: function (feature) {
+                    var coordinates = [];
+                    var geo;
+                    if (feature.getGeometry() instanceof ol.geom.Circle) {
+                        geo = feature.getGeometry();
+                        coordinates = [geo.getCenter(), geo.getLastCoordinate()]
+                    } else {
+                        geo = feature.getGeometry();
+                        coordinates = geo.getCoordinates()[0]
+                    }
+                    return new ol.geom.MultiPoint(coordinates)
+                }
+            })
+            ];
+            styles['Circle'] = styles['Polygon'];
+            styles['MultiPolygon'] = styles['Polygon'];
+            styles['LineString'] = [new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: [255, 255, 255, 1],
+                    width: 5
+                })
+            }),
+            new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: [255, 0, 0, 1],
+                    width: 3
+                })
+            }),
+            new ol.style.Style({
+                image: new ol.style.Circle({
+                    radius: 2,
+                    fill: new ol.style.Fill({
+                        color: 'red'
+                    })
+                }),
+                geometry: function (feature) {
+                    var coordinates = feature.getGeometry().getCoordinates();
+                    return new ol.geom.MultiPoint(coordinates)
+                }
+            })
+            ];
+            styles['MultiLineString'] = styles['LineString'];
+            styles['Point'] = [new ol.style.Style({
+                image: new ol.style.Circle({
+                    radius: 5,
+                    fill: new ol.style.Fill({
+                        color: 'red'
+                    })
+                })
+            })];
+            styles['MultiPoint'] = styles['Point'];
+            styles['GeometryCollection'] = styles['Polygon'].concat(styles['Point']);
+            return function (feature) {
+                return styles[feature.getGeometry().getType()]
+            }
+        })();
+        var draw_typeSelect = document.getElementById('draw_type');
+        //绘制对象
+        var draw_draw,draw_snap,draw_select;
+
+        //实例化一个矢量图层Vector作为绘制层
+        var draw_source = vectorLayer.getSource();
+        var draw_vector = vectorLayer;
+
+        // var draw_modify = new ol.interaction.Modify({source: draw_source});
+        // map.addInteraction(draw_modify);
+        const draw_modify = new ol.interaction.Modify({
+            source: draw_source,
+            style: function (feature) {
+                feature.get('features').forEach(function (modifyFeature) {
+                    const modifyGeometry = modifyFeature.get('modifyGeometry');
+                    if (modifyGeometry) {
+                        const modifyPoint = feature.getGeometry().getCoordinates();
+                        const geometries = modifyFeature.getGeometry().getGeometries();
+                        const polygon = geometries[0].getCoordinates()[0];
+                        const center = geometries[1].getCoordinates();
+                        const projection = map.getView().getProjection();
+                        let first, last, radius;
+                        if (modifyPoint[0] === center[0] && modifyPoint[1] === center[1]) {
+                        // center is being modified
+                        // get unchanged radius from diameter between polygon vertices
+                        first = ol.proj.transform(polygon[0], projection, 'EPSG:4326');
+                        last = ol.proj.transform(
+                            polygon[(polygon.length - 1) / 2],
+                            projection,
+                            'EPSG:4326'
+                        );
+                        radius = ol.sphere.getDistance(first, last) / 2;
+                        } else {
+                        // radius is being modified
+                        first = ol.proj.transform(center, projection, 'EPSG:4326');
+                        last = ol.proj.transform(modifyPoint, projection, 'EPSG:4326');
+                        radius = ol.sphere.getDistance(first, last);
+                        }
+                        // update the polygon using new center or radius
+                        const circle = ol.geom.Polygon.circular(
+                            ol.proj.transform(center, projection, 'EPSG:4326'),radius,128);
+                        circle.transform('EPSG:4326', projection);
+                        geometries[0].setCoordinates(circle.getCoordinates());
+                        // save changes to be applied at the end of the interaction
+                        modifyGeometry.setGeometries(geometries);
+                    }
+                });
+                return defaultStyle(feature);
+            },
+        });
+        const defaultStyle = new ol.interaction.Modify({source: draw_source}).getOverlay().getStyleFunction();
+
+        draw_modify.on('modifystart', function (event) {
+            event.features.forEach(function (feature) {
+                const geometry = feature.getGeometry();
+                if (geometry.getType() === 'GeometryCollection') {
+                feature.set('modifyGeometry', geometry.clone(), true);
+                }
+            });
+        });
+
+        draw_modify.on('modifyend', function (event) {
+            event.features.forEach(function (feature) {
+                const modifyGeometry = feature.get('modifyGeometry');
+                if (modifyGeometry) {
+                feature.setGeometry(modifyGeometry);
+                feature.unset('modifyGeometry', true);
+                }
+            });
+        });
+        map.addInteraction(draw_modify);
+
+        //根据绘制类型进行交互绘制图形处理
+        var numPoints;
+        function draw_addInteraction() {
+            var value = draw_typeSelect.value;
+            if (value !== 'None') {
+                if (value == 'Clear') {
+                    draw_source.clear();
+                    // source = new ol.source.Vector();
+                    // vector.setSource(source);
+                    console.log("draw_clear");
+                    return false;
+                }
+                if (value === 'drawDelete') {
+                    clearAllMapInteraction();
+                    draw_select = new ol.interaction.Select({ style: style_selected });
+                    map.addInteraction(draw_select);
+                    draw_select.on('select', function (e) {
+                        var features = e.selected; 
+                        var num = features.length; 
+                        if (num > 0) {
+                            for (var index = 0; index < num; index++) {
+                                var feature = features[0];
+                                draw_vector.getSource().removeFeature(feature);
+                            }
+                            draw_select.getFeatures().clear();
+                        }
+                    });
+                    return false;
+                }
+                let geometryFunction;
+                if (value === 'Square') {
+                    value = 'Circle';
+                    geometryFunction = ol.interaction.Draw.createRegularPolygon(4);
+                } else if (value === 'Box') {
+                    value = 'Circle';
+                    geometryFunction = ol.interaction.Draw.createBox();
+                } else if (value === 'Star') {
+                    value = 'Circle';
+                    geometryFunction = function (coordinates, geometry) {
+                    const center = coordinates[0];
+                    const last = coordinates[coordinates.length - 1];
+                    const dx = center[0] - last[0];
+                    const dy = center[1] - last[1];
+                    const radius = Math.sqrt(dx * dx + dy * dy);
+                    const rotation = Math.atan2(dy, dx);
+                    const newCoordinates = [];
+                    numPoints = 10;
+                    for (let i = 0; i < numPoints; ++i) {
+                        const angle = rotation + (i * 2 * Math.PI) / numPoints;
+                        const fraction = i % 2 === 0 ? 1 : 0.5;
+                        const offsetX = radius * fraction * Math.cos(angle);
+                        const offsetY = radius * fraction * Math.sin(angle);
+                        newCoordinates.push([center[0] + offsetX, center[1] + offsetY]);
+                    }
+                    newCoordinates.push(newCoordinates[0].slice());
+                    if (!geometry) {
+                        geometry = new ol.geom.Polygon([newCoordinates]);
+                    } else {
+                        geometry.setCoordinates([newCoordinates]);
+                    }
+                    return geometry;
+                    };
+                } else if (value === 'Geodesic') {
+                    value = 'Circle';
+                    geometryFunction = function (coordinates, geometry, projection) {
+                    if (!geometry) {
+                        geometry = new ol.geom.GeometryCollection([
+                        new  ol.geom.Polygon([]),
+                        new  ol.geom.Point(coordinates[0]),
+                        ]);
+                    }
+                    const geometries = geometry.getGeometries();
+                    const center = ol.proj.transform(coordinates[0], projection, 'EPSG:4326');
+                    const last = ol.proj.transform(coordinates[1], projection, 'EPSG:4326');
+                    const radius = ol.sphere.getDistance(center, last);
+                    const circle = ol.geom.Polygon.circular(center, radius, 128);
+                    circle.transform('EPSG:4326', projection);
+                    geometries[0].setCoordinates(circle.getCoordinates());
+                    geometry.setGeometries(geometries);
+                    return geometry;
+                    };
+                }
+
+                draw_draw = new ol.interaction.Draw({
+                    source: draw_source,
+                    type: value,
+                    geometryFunction:geometryFunction,
+                });
+                if (draw_source == null) {
+                    draw_source = new ol.source.Vector();
+                    draw_vector.setSource(draw_source);
+                    console.log("new draw_source");
+                }
+                console.log("change draw");
+
+                map.addInteraction(draw_draw);
+                draw_snap = new ol.interaction.Snap({source: draw_source});
+                map.addInteraction(draw_snap);
+                map.addInteraction(draw_modify);
+            }
+            return false;
+        }
+
+        /**
+         * 用户更改绘制类型触发的事件.
+         * @param {Event} e 更改事件
+         */
+        draw_typeSelect.onchange = function (e) {
+            //移除绘制图形
+            map.removeInteraction(draw_draw);
+            map.removeInteraction(draw_snap);
+            map.removeInteraction(draw_modify);
+            map.removeInteraction(draw_select);
+            //添加交互绘制功能控件
+            draw_addInteraction();
+        };
+        //添加交互绘制功能控件
+        draw_addInteraction();
+        document.getElementById('draw_undo').addEventListener('click', function () {
+            draw_draw.removeLastPoint();
+        });
+
+
+
+        function clearAllMapInteraction() {
+            var interactions = map.getInteractions(); 
+            var length = interactions.getLength(); 
+            for (var i = 9; i < length; i++) {
+                var interaction = interactions.item(9); if (interaction instanceof ol.interaction.Select) { interaction.getFeatures().clear() }
+                map.removeInteraction(interaction)
+            }
+        };
+    </script>
+    <!-- 测量工具 -->
+    <script>/* 测距测面积 */
+        var sketch;
+        var helpTooltipElement;
+        var helpTooltip;
+        var measureTooltipElement;
+        var measureTooltip;
+        var continuePolygonMsg = '点击测量面积Click to continue drawing the polygon';
+        var continueLineMsg = '点击测量长度Click to continue drawing the line';
+
+        var pointerMoveHandler = function (evt) {
+            if (evt.dragging) {
+                return;
+            }
+            var helpMsg = '点击开始测量Click to start drawing';
+
+            if (sketch) {
+                var geom = sketch.getGeometry();
+                if (geom instanceof ol.geom.Polygon) {
+                    helpMsg = continuePolygonMsg;
+                } else if (geom instanceof ol.geom.LineString) {
+                    helpMsg = continueLineMsg;
+                }
+            }
+
+            helpTooltipElement.innerHTML = helpMsg;
+            helpTooltip.setPosition(evt.coordinate);
+
+            helpTooltipElement.classList.remove('hidden');
+        };
+
+        var measure_source = new ol.source.Vector();
+        var measure_vector = new ol.layer.Vector({
+            source: measure_source,
+            style: function (feature) {
+                if (feature.get('type') in vectorStyle) {return vectorStyle[feature.get('type')];}
+                else {return vectorStyle['otherStyle'];}
+        },
+        });
+        map.addLayer(measure_vector);
+        measure_vector.setZIndex(6000);    
+        // var measure_vector = draw_vector;
+        // var measure_source = draw_vector.getSource();
+
+        var measure_typeSelect = document.getElementById('measure_type');
+        var measure_switch = document.getElementById('measure_switch');
+        var measure_draw; // global so we can remove it later
+
+        var formatLength = function (line) {
+            var length = ol.sphere.getLength(line);
+            var output;
+            if (length > 100) {
+                output = (Math.round(length / 1000 * 100) / 100) +
+                    ' ' + 'km';
+            } else {
+                output = (Math.round(length * 100) / 100) +
+                    ' ' + 'm';
+            }
+            return output;
+        };
+
+        var formatArea = function (polygon) {
+            var area = ol.sphere.getArea(polygon);
+            var output;
+            if (area > 10000) {
+                output = (Math.round(area / 1000000 * 100) / 100) +
+                    ' ' + 'km<sup>2</sup>';
+            } else {
+                output = (Math.round(area * 100) / 100) +
+                    ' ' + 'm<sup>2</sup>';
+            }
+            return output;
+        };
+
+        function measure_addInteraction() {
+            map.on('pointermove', pointerMoveHandler);
+            map.getViewport().addEventListener('mouseout', function () {
+                helpTooltipElement.classList.add('hidden');
+            });
+            var type = (measure_typeSelect.value == 'area' ? 'Polygon' : 'LineString');
+            measure_draw = new ol.interaction.Draw({
+                source: measure_source,
+                type: type,
+                style: new ol.style.Style({
+                    fill: new ol.style.Fill({
+                        color: '#ffcc33'
+                    }),
+                    stroke: new ol.style.Stroke({
+                        color: '#ffcc33',
+                        lineDash: [10, 10],
+                        width: 3
+                    }),
+                    image: new ol.style.Circle({
+                        radius: 7,
+                        stroke: new ol.style.Stroke({
+                            color: '#ffcc33'
+                        }),
+                        fill: new ol.style.Fill({
+                            color: '#ffcc33'
+                        })
+                    })
+                })
+            });
+            map.addInteraction(measure_draw);
+
+            createMeasureTooltip();
+            createHelpTooltip();
+
+            var listener;
+            measure_draw.on('drawstart',
+                function (evt) {
+                    // set sketch
+                    sketch = evt.feature;
+
+                    var tooltipCoord = evt.coordinate;
+
+                    listener = sketch.getGeometry().on('change', function (evt) {
+                        var geom = evt.target;
+                        var output;
+                        if (geom instanceof ol.geom.Polygon) {
+                            output = formatArea(geom);
+                            tooltipCoord = geom.getInteriorPoint().getCoordinates();
+                        } else if (geom instanceof ol.geom.LineString) {
+                            output = formatLength(geom);
+                            tooltipCoord = geom.getLastCoordinate();
+                        }
+                        measureTooltipElement.innerHTML = output;
+                        measureTooltip.setPosition(tooltipCoord);
+                    });
+                });
+
+            measure_draw.on('drawend',
+                function () {
+                    measureTooltipElement.className = 'ol-tooltip ol-tooltip-static';
+                    measureTooltip.setOffset([0, -7]);
+                    sketch.set('type','measureFeature');
+
+                    sketch = null;
+                    // unset tooltip so that a new one can be created
+                    measureTooltipElement = null;
+                    createMeasureTooltip();
+                    ol.Observable.unByKey(listener);
+                });
+        }
+
+        function createHelpTooltip() {
+            if (helpTooltipElement) {
+                helpTooltipElement.parentNode.removeChild(helpTooltipElement);
+            }
+            helpTooltipElement = document.createElement('div');
+            helpTooltipElement.className = 'ol-tooltip hidden';
+            helpTooltip = new ol.Overlay({
+                element: helpTooltipElement,
+                offset: [15, 0],
+                positioning: 'center-left'
+            });
+            map.addOverlay(helpTooltip);
+        }
+
+        function createMeasureTooltip() {
+            if (measureTooltipElement) {
+                measureTooltipElement.parentNode.removeChild(measureTooltipElement);
+            }
+            measureTooltipElement = document.createElement('div');
+            measureTooltipElement.className = 'ol-tooltip ol-tooltip-measure';
+            measureTooltip = new ol.Overlay({
+                element: measureTooltipElement,
+                offset: [0, -15],
+                positioning: 'bottom-center'
+            });
+            map.addOverlay(measureTooltip);
+        }
+
+        measure_typeSelect.onchange = measure_typeSelectFun;
+        measure_switch.onchange = measure_typeSelectFun;
+        function measure_typeSelectFun() {
+            map.removeInteraction(measure_draw);
+            map.removeOverlay(helpTooltip);
+            map.removeOverlay(measureTooltip);
+            if(measure_switch.checked) {
+                measure_addInteraction();
+            }
+            else {
+                map.un('pointermove', pointerMoveHandler);
+                map.getViewport().removeEventListener('mouseout', function () {
+                    helpTooltipElement.classList.add('hidden');
+                });
+            }
+        }
+
+        function measure_clear() {
+            measure_vector.getSource().clear();
+        }
+        function measure_label_clear() {
+            $('.ol-tooltip.ol-tooltip-static').remove();
+        }
+        measure_typeSelectFun();
     </script>
 </body>
 
