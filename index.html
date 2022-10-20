@@ -724,6 +724,7 @@
                 navigator.msSaveBlob(mapCanvas.msToBlob(), 'map.png');
                 } else {
                 const link = document.getElementById('image-download');
+                link.download = 'map_'+ Date.now() + '.png';
                 link.href = mapCanvas.toDataURL();
                 link.click();
                 }
