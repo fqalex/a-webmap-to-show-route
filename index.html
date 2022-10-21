@@ -460,16 +460,68 @@
             },
             // https://gac-geo.googlecnapps.cn/maps/vt?lyrs=y&gl=cn&scale=2&x={$x}&y={$y}&z={$z}
             {
-                "mapName": "googlecnapps",
+                "mapName": "googlecnapps矢量地图",
+                "xyzUrl":  "https://gac-geo.googlecnapps.cn/maps/vt?lyrs=m&gl=cn&scale=2&x={x}&y={y}&z={z}",
+                tileSize:512,
+            },
+            {
+                "mapName": "googlecnapps地形",
+                "xyzUrl":  "https://gac-geo.googlecnapps.cn/maps/vt?lyrs=t&gl=cn&scale=2&x={x}&y={y}&z={z}",
+                tileSize:512,
+            },
+            {
+                "mapName": "googlecnapps地形加标注",
+                "xyzUrl":  "https://gac-geo.googlecnapps.cn/maps/vt?lyrs=p&gl=cn&scale=2&x={x}&y={y}&z={z}",
+                tileSize:512,
+            },
+            {
+                "mapName": "googlecnapps卫星影像",
+                "xyzUrl":  "https://gac-geo.googlecnapps.cn/maps/vt?lyrs=s&gl=cn&scale=2&x={x}&y={y}&z={z}",
+                tileSize:512,
+            },
+            {
+                "mapName": "googlecnapps卫星影像加标注",
                 "xyzUrl":  "https://gac-geo.googlecnapps.cn/maps/vt?lyrs=y&gl=cn&scale=2&x={x}&y={y}&z={z}",
+                tileSize:512,
+            },
+            {
+                "mapName": "googlecnapps标注层",
+                "xyzUrl":  "https://gac-geo.googlecnapps.cn/maps/vt?lyrs=h&gl=cn&scale=2&x={x}&y={y}&z={z}",
                 tileSize:512,
             },
             // https://gmap.xielu.party:8888/vt/lyrs=y&gl=cn&scale=2&x={$x}&y={$y}&z={$z}
             {
-                "mapName": "gmap",
+                "mapName": "gmap矢量",
+                "xyzUrl":  "https://gmap.xielu.party:8888/vt/lyrs=m&gl=cn&scale=2&x={x}&y={y}&z={z}",
+                tileSize:512,
+            },
+            {
+                "mapName": "gmap地形",
+                "xyzUrl":  "https://gmap.xielu.party:8888/vt/lyrs=t&gl=cn&scale=2&x={x}&y={y}&z={z}",
+                tileSize:512,
+            },
+            {
+                "mapName": "gmap地形加标注",
+                "xyzUrl":  "https://gmap.xielu.party:8888/vt/lyrs=p&gl=cn&scale=2&x={x}&y={y}&z={z}",
+                tileSize:512,
+            },
+            {
+                "mapName": "gmap卫星影像",
+                "xyzUrl":  "https://gmap.xielu.party:8888/vt/lyrs=s&gl=cn&scale=2&x={x}&y={y}&z={z}",
+                tileSize:512,
+            },
+            {
+                "mapName": "gmap卫星影像加标注",
                 "xyzUrl":  "https://gmap.xielu.party:8888/vt/lyrs=y&gl=cn&scale=2&x={x}&y={y}&z={z}",
                 tileSize:512,
             },
+            {
+                "mapName": "gmap标注",
+                "xyzUrl":  "https://gmap.xielu.party:8888/vt/lyrs=h&gl=cn&scale=2&x={x}&y={y}&z={z}",
+                tileSize:512,
+            },
+
+
         ];
 
         function returnXYZLayer(url) {
@@ -523,7 +575,7 @@
                         if(treeNode.checked == true) {
                             map.addLayer(wmsLayer[j].wms);
                             wmsLayer[j].wms.setVisible(true);
-                            wmsLayer[j].wms.setZIndex(100);
+                            wmsLayer[j].wms.setZIndex(10000);
                             console.log("wmsLayer[j] is :",wmsLayer[j]);
                         } 
                     }
